@@ -1,0 +1,19 @@
+[package]
+name = "mutelnet"
+version = "0.0.1"
+edition = "2018"
+authors = ["The Mudcano Project"]
+license = "LGPL-3.0-or-later"
+repository = "https://github.com/mudcano/telnet-codec"
+description = """
+A simple library for handling TelnetEvents from telnet-codec
+"""
+keywords = ["asynchronous", "tokio", "telnet", "mud", "codec"]
+categories = ["encoding", "network-programming"]
+readme = "README.md"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+telnet-codec = "0.1.0"
+bytes = "1.0"
