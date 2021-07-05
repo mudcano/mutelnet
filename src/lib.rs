@@ -145,6 +145,7 @@ impl MuTelnet {
         let mut start_remote = HashSet::new();
 
         for (op, option) in self.telnet_options.iter() {
+            self.op_state.insert(*op, TelnetOptionState::default());
             if let Some(state) = self.op_state.get_mut(op) {
                 if option.start_remote {
                     start_remote.insert(*op);
