@@ -1,6 +1,6 @@
 [package]
 name = "mutelnet"
-version = "0.0.1"
+version = "0.0.2"
 edition = "2018"
 authors = ["The Mudcano Project"]
 license = "LGPL-3.0-or-later"

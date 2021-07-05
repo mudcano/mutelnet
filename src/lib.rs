@@ -192,8 +192,9 @@ impl MuTelnet {
         self.send_line(in_str);
     }
 
-    pub fn receive_negotiate(&mut self, command: u8, op: u8) {
+    pub fn receive_negotiate(&mut self, command: u8, op: u8) -> bool {
         // This means we received an IAC will/wont/do/dont...
+        // This function returns true/false depending on if its Config changed.
         let mut handshake: u8 = 0;
         let mut enable_local = false;
         let mut disable_local = false;
@@ -277,6 +278,7 @@ impl MuTelnet {
                 _ => 0
             };
         }
+        let mut changed: bool = false;
 
         if respond > 0 {
             self.send_events.push(TelnetEvent::Negotiate(respond, op));
@@ -288,23 +290,24 @@ impl MuTelnet {
             self.handshakes_left.remote.remove(&handshake_remote);
         }
         if enable_local {
-            self.enable_local(op);
+            changed = self.enable_local(op);
         }
         if disable_local {
-            self.disable_local(op);
+            changed = self.disable_local(op);
         }
         if enable_remote {
-            self.enable_remote(op);
+            changed = self.enable_remote(op);
         }
         if disable_remote {
-            self.disable_remote(op);
+            changed = self.disable_remote(op);
         }
         if handshake > 0 {
             //self.check_ready();
         }
+        changed
     }
 
-    fn enable_remote(&mut self, op: u8) {
+    fn enable_remote(&mut self, op: u8) -> bool {
         match op {
             //NAWS => self.config.naws = true,
             TTYPE => {
@@ -315,14 +318,16 @@ impl MuTelnet {
                 // Whatever this option is.. well, whatever.
             }
         }
+        false
     }
 
-    fn disable_remote(&mut self, op: u8) {
+    fn disable_remote(&mut self, op: u8) -> bool {
         match op {
             NAWS => {
                 //self.config.naws = false;
                 self.config.width = 78;
                 self.config.height = 24;
+                return true;
             }
             TTYPE => {
                 //self.config.ttype = false;
@@ -333,9 +338,10 @@ impl MuTelnet {
                 // Whatever this option is.. well, whatever.
             }
         }
+        false
     }
 
-    fn enable_local(&mut self, op: u8) {
+    fn enable_local(&mut self, op: u8) -> bool {
         match op {
             SGA => {
                 //self.config.sga = true;
@@ -344,9 +350,10 @@ impl MuTelnet {
 
             }
         }
+        false
     }
 
-    fn disable_local(&mut self, op: u8) {
+    fn disable_local(&mut self, op: u8) -> bool {
         match op {
             SGA => {
                 //self.config.sga = false;
@@ -355,25 +362,27 @@ impl MuTelnet {
 
             }
         }
+        false
     }
 
-    pub fn handle_sub(&mut self, op: u8, mut data: Bytes) {
+    pub fn handle_sub(&mut self, op: u8, mut data: Bytes) -> bool {
+        // This returns whether self.config changed as a result.
         if !self.op_state.contains_key(&op) {
             // Only if we can get a handler, do we want to care about this.
             // All other sub-data is ignored.
-            return;
+            return false;
         }
-
+        let mut changed = false;
         match op {
             NAWS => {
-                self.receive_naws(data);
+                changed = self.receive_naws(data);
             },
             TTYPE => {
-                self.receive_ttype(data);
+                changed = self.receive_ttype(data);
             }
             _ => {}
         }
-
+        changed
     }
 
     fn request_ttype(&mut self) {
@@ -382,18 +391,18 @@ impl MuTelnet {
         self.send_events.push(TelnetEvent::SubNegotiate(TTYPE, data.freeze()));
     }
 
-    fn receive_ttype(&mut self, mut data: Bytes) {
+    fn receive_ttype(&mut self, mut data: Bytes) -> bool {
 
         if data.len() < 2 {
-            return
+            return false;
         }
 
         if self.handshakes_left.ttype.is_empty() {
-            return;
+            return false;
         }
 
         if data[0] != 0 {
-            return;
+            return false;
         }
 
         data.advance(1);
@@ -408,7 +417,7 @@ impl MuTelnet {
                     self.ttype_count += 1;
                     self.handshakes_left.ttype.remove(&0);
                     self.request_ttype();
-                    return;
+                    return true;
                 },
                 1 | 2 => {
                     if let Some(last) = self.ttype_last.clone() {
@@ -423,11 +432,13 @@ impl MuTelnet {
                                 1 => {
                                     self.receive_ttype_1(upper.clone());
                                     self.ttype_last = Some(upper.clone());
+                                    return true;
                                 },
                                 2 => {
                                     self.receive_ttype_2(upper.clone());
                                     self.ttype_last = None;
                                     self.handshakes_left.ttype.clear();
+                                    return true;
                                 }
                                 _ => {}
                             }
@@ -436,7 +447,7 @@ impl MuTelnet {
                             }
                         }
                     }
-                    return;
+                    return false;
                 }
                 _ => {
                     // This shouldn't happen.
@@ -444,7 +455,7 @@ impl MuTelnet {
             }
         }
 
-
+        false
     }
 
     fn receive_ttype_0(&mut self, data: String) {
@@ -536,11 +547,15 @@ impl MuTelnet {
         self.handshakes_left.ttype.remove(&2);
     }
 
-    fn receive_naws(&mut self, mut data: Bytes) {
+    fn receive_naws(&mut self, mut data: Bytes) -> bool {
         if data.len() >= 4 {
+            let old_width = self.config.width;
+            let old_height = self.config.height;
             self.config.width = data.get_u16();
             self.config.height = data.get_u16();
+            return !((old_width == self.config.width) & (old_height == self.config.height))
         }
+        false
     }
 }
 
